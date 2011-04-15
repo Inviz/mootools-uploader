@@ -1,0 +1,19 @@
+name: "Uploader"
+
+web: "http://digitarald.de/project/fancyupload"
+
+description: "A stripped version of FancyUpload to provide only the basic uploading capabilities"
+
+license: "MIT License"
+
+copyright: "&copy; [digitarald](http://digitarald.de)"
+
+authors: 
+  - "Harald Kirschner <mail@digitarald.de>"
+  - "Yaroslaff Fedin"
+
+sources:
+  - "Source/Uploader.js"
+  - "Source/Uploader.Iframe.js"
+  - "Source/Uploader.Request.js"
+  - "Source/Uploader.Swiff.js"
