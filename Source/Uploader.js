@@ -18,18 +18,34 @@ authors:
 */
 
 !function() {
+  
 
 var Uploader = this.Uploader = function(options) {
-	if (!options.method) {
-		for (var method, i = 0; method = Uploader.METHODS[i++];) {
-			if (Uploader[method] && Uploader[method].condition(options)) {
-				options.method = method;
+	options = Object.merge(Uploader.options, options)
+	if (!options.adapter) {
+		for (var adapter, i = 0; adapter = Uploader.METHODS[i++];) {
+			if (Uploader[adapter] && Uploader[adapter].condition(options)) {
+				options.adapter = adapter;
 				break;
 			}
 		}
 	}
-	return new Uploader[options.method.capitalize()](options);
+	var Klass = Uploader[options.adapter.capitalize()];
+	options.fileClass = (options.getFileClass ? options : Uploader).getFileClass(options.adapter, Klass);
+	var uploader = new Klass(options);
+	if (!window.$u)$u = uploader
+	uploader.addEvent('fileProgress', function(file) {
+	  if (file.id) file = uploader.findFile(file.id);
+	  console.log('file', file.id, file)
+	  if (file) file.fireEvent('progress');
+	});
+	return uploader;
 };
+
+Uploader.options = {
+  verbose: true,
+  target: true
+}
 
 Object.append(Uploader, {
 	METHODS: ['Swiff', 'Iframe', 'Request'],
@@ -85,12 +101,98 @@ Object.append(Uploader, {
 			(anchor || (anchor = new Element('a'))).href = path;
 			return anchor.href;
 		};
-	})()
+	})(),
+	
+	getFileClass: function(method, klass) {
+	  return klass.File;
+	}
 
 });
 
 Uploader.File = new Class({
-	Implements: Events
+	Implements: [Events, Options],
+	
+	options: {
+		url: null,
+		method: null,
+		data: null,
+		mergeData: true,
+		fieldName: null
+	},
+	
+  render: function() {
+		return this;
+	},
+	
+	cancel: function() {
+	  this.stop();
+	  this.remove();
+	}
 });
+
+Uploader.Targeting = new Class({
+  options: {
+    zIndex: 9999
+  },
+  
+  getTargetRelayEvents: function() {
+    return {
+			buttonEnter: this.targetRelay.bind(this, 'mouseenter'),
+			buttonLeave: this.targetRelay.bind(this, 'mouseleave'),
+			buttonDown: this.targetRelay.bind(this, 'mousedown'),
+			buttonDisable: this.targetRelay.bind(this, 'disable')
+		}
+  },
+  
+  getTargetEvents: function() {
+    if (this.targetEvents) return this.targetEvents;
+    this.targetEvents = {
+      mousemove: this.reposition.bind(this)
+    };
+    return this.targetEvents;
+  },
+  
+  targetRelay: function(name) {
+    if (this.target) this.target.fireEvent(name);
+  },
+  
+  attach: function(target) {
+    if (!this.target) this.addEvents(this.getTargetRelayEvents());
+    else this.detach();
+    this.target = target;
+    this.target.addEvents(this.getTargetEvents(this.target));
+  },
+  
+  detach: function(target) {
+    if (!target) target = this.target;
+    target.removeEvents(this.getTargetEvents(target));
+    delete this.target;
+  },
+
+	reposition: function(coords) {
+		// update coordinates, manual or automatically
+		console.log('repois')
+		coords = coords || (this.target && this.target.offsetHeight)
+			? this.target.getCoordinates(this.box.getOffsetParent())
+			: {top: window.getScrollTop(), left: 0, width: 40, height: 40}
+		this.box.setStyles(coords);
+		this.fireEvent('reposition', [coords, this.box, this.target]);
+	},
+  
+  getBox: function() {
+    if (this.box) return this.box;
+    this.box = new Element('div').setStyles({
+			position: 'absolute',
+			opacity: 1,
+			zIndex: this.options.zIndex,
+			overflow: 'hidden',
+			overflow: 'hidden',
+			height: 100, width: 100,
+			top: scroll.y, left: scroll.x
+		});
+		this.box.inject(document.id(this.options.container) || document.body);
+    return this.box;
+  }
+})
 
 }.call(this);

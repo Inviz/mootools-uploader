@@ -15,20 +15,17 @@ license: MIT License
 author: Harald Kirschner <http://digitarald.de>
 ...
 */
-
-(function($, $$){
 	
-this.Swiff.Uploader = new Class({
+Uploader.Swiff = Swiff.Uploader = new Class({
 
 	Extends: Swiff,
 
-	Implements: Events,
+	Implements: [Events, Uploader.Targeting],
 
 	options: {
 		path: 'Swiff.Uploader.swf',
 		
 		target: null,
-		zIndex: 9999,
 		
 		callBacks: null,
 		params: {
@@ -103,7 +100,7 @@ this.Swiff.Uploader = new Class({
 		// before setting options (which adds own events)
 		this.addEvent('load', this.initializeSwiff, true)
 			.addEvent('select', this.processFiles, true)
-			.addEvent('complete', this.update, true)
+			.addEvent('complete', this.setData, true)
 			.addEvent('fileRemove', function(file) {
 				this.fileList.erase(file);
 			}.bind(this), true);
@@ -125,22 +122,8 @@ this.Swiff.Uploader = new Class({
 		var path = this.options.path;
 		if (!path.contains('?')) path += '?noCache=' + Date.now(); // cache in IE
 
-		// container options for Swiff class
-		this.options.container = this.box = new Element('span', {'class': 'swiff-uploader-box'}).inject($(this.options.container) || document.body);
-
 		// target 
-		this.target = $(this.options.target);
-		if (this.target) {
-			var scroll = window.getScroll();
-			this.box.setStyles({
-				position: 'absolute',
-				visibility: 'visible',
-				zIndex: this.options.zIndex,
-				overflow: 'hidden',
-				height: 1, width: 1,
-				top: scroll.y, left: scroll.x
-			});
-			
+		if (this.options.target) {
 			// we force wMode to transparent for the overlay effect
 			this.parent(path, {
 				params: {
@@ -149,34 +132,20 @@ this.Swiff.Uploader = new Class({
 				height: '100%',
 				width: '100%'
 			});
-			
-			this.target.addEvent('mouseenter', this.reposition.bind(this));
-			
-			// button interactions, relayed to to the target
-			this.addEvents({
-				buttonEnter: this.targetRelay.bind(this, 'mouseenter'),
-				buttonLeave: this.targetRelay.bind(this, 'mouseleave'),
-				buttonDown: this.targetRelay.bind(this, 'mousedown'),
-				buttonDisable: this.targetRelay.bind(this, 'disable')
-			});
-			
-			this.reposition();
-			window.addEvent('resize', this.reposition.bind(this));
 		} else {
 			this.parent(path);
 		}
 
-		this.inject(this.box);
+		this.inject(this.getBox());
 
 		this.fileList = [];
 		
 		this.size = this.uploading = this.bytesLoaded = this.percentLoaded = 0;
 		
-		if (Browser.Plugins.Flash.version < 9) {
-			this.fireEvent('fail', ['flash']);
-		} else {
-			this.verifyLoad.delay(1000, this);
-		}
+		this.verifyLoad.delay(1000, this);
+		
+    var target = document.id(this.options.target);
+    if (target) this.attach(target);
 	},
 	
 	verifyLoad: function() {
@@ -194,7 +163,7 @@ this.Swiff.Uploader = new Class({
 		// file* callbacks are relayed to the specific file
 		if (name.substr(0, 4) == 'file') {
 			// updated queue data is the second argument
-			if (args.length > 1) this.update(args[1]);
+			if (args.length > 1) this.setData(args[1]);
 			var data = args[0];
 			
 			var file = this.findFile(data.id);
@@ -203,14 +172,14 @@ this.Swiff.Uploader = new Class({
 				var fire = name.replace(/^file([A-Z])/, function($0, $1) {
 					return $1.toLowerCase();
 				});
-				file.update(data).fireEvent(fire, [data], 10);
+				file.setData(data).fireEvent(fire, [data], 10);
 			}
 		} else {
 			this.fireEvent(name, args, 5);
 		}
 	},
 
-	update: function(data) {
+	setData: function(data) {
 		// the data is saved right to the instance 
 		Object.append(this, data);
 		this.fireEvent('queue', [this], 10);
@@ -252,19 +221,6 @@ this.Swiff.Uploader = new Class({
 		this.appendCookieData();
 	},
 	
-	targetRelay: function(name) {
-		if (this.target) this.target.fireEvent(name);
-	},
-
-	reposition: function(coords) {
-		// update coordinates, manual or automatically
-		coords = coords || (this.target && this.target.offsetHeight)
-			? this.target.getCoordinates(this.box.getOffsetParent())
-			: {top: window.getScrollTop(), left: 0, width: 40, height: 40}
-		this.box.setStyles(coords);
-		this.fireEvent('reposition', [coords, this.box, this.target]);
-	},
-
 	setOptions: function(options) {
 		if (options) {
 			if (options.url) options.url = Uploader.qualifyPath(options.url);
@@ -336,7 +292,8 @@ this.Swiff.Uploader = new Class({
 
 		if (successraw) {
 			successraw.each(function(data) {
-				var ret = new cls(this, data);
+				var ret = new cls;
+				ret.setBase(this, data);
 				if (!ret.validate()) {
 					ret.remove.delay(10, ret);
 					fail.push(ret);
@@ -353,30 +310,36 @@ this.Swiff.Uploader = new Class({
 
 		if (failraw || fail.length) {
 			fail.append((failraw) ? failraw.map(function(data) {
-				return new cls(this, data);
+				var row = new cls;
+				row.setBase(this, data);
+				return row;
 			}, this) : []).each(function(file) {
-				file.invalidate().render();
+				file.invalidate();
+				file.render();
 			});
 
 			this.fireEvent('selectFail', [fail], 10);
 		}
 
-		this.update(queue);
+		this.setData(queue);
 
 		if (this.options.instantStart && success.length) this.start();
 	}
 
 });
 
+Swiff.Uploader.log = Uploader.log;
+
 Swiff.Uploader.File = new Class({
-	Extends: Uploader.File,
+	Implements: Uploader.File,
 
-	initialize: function(base, data) {
+	setBase: function(base, data) {
 		this.base = base;
-		this.update(data);
+		this.setData(data);
+		this.fireEvent('setBase', [base, this.name, this.size]);
 	},
-
-	update: function(data) {
+	
+	setData: function(data) {
 		return Object.append(this, data);
 	},
 
@@ -402,11 +365,7 @@ Swiff.Uploader.File = new Class({
 		return this.fireEvent('invalid', this, 10);
 	},
 
-	render: function() {
-		return this;
-	},
-
-	setOptions: function(options) {
+	setSwiffOptions: function(options) {
 		if (options) {
 			if (options.url) options.url = Uploader.qualifyPath(options.url);
 			this.base.remote('xFileSetOptions', this.id, options);
@@ -436,8 +395,6 @@ Swiff.Uploader.File = new Class({
 
 });
 
-this.Uploader.Swiff.condition = function() {
+Swiff.Uploader.condition = function() {
 	return Browser.Plugins.Flash && Browser.Plugins.Flash.version > 8;
 }
-	
-}).call(this, document.id, document.getElements);

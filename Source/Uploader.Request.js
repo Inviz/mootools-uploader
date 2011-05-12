@@ -18,12 +18,9 @@ authors:
 ...
 */
 
-(function($, $$){
+Uploader.Request = new Class({
 
-if (!this.Uploader) this.Uploader = {}
-this.Uploader.Request = new Class({
-
-  Implements: [Options, Events],
+  Implements: [Options, Events, Uploader.Targeting],
 
   options: {
     container: null,
@@ -52,12 +49,27 @@ this.Uploader.Request = new Class({
 
     this.target = $(this.options.target);
 
-    this.box = new Element('span', {'class': 'swiff-uploader-box'}).addEvents({
+    this.box = this.getBox().addEvents({
       'mouseenter': this.fireEvent.bind(this, 'buttonEnter'),
       'mouseleave': this.fireEvent.bind(this, 'buttonLnter')
-    })
+    });
 
-    this.file = new Element('input', {
+    this.createInput().inject(this.box);
+    
+    this.reposition();
+    window.addEvent('resize', this.reposition.bind(this));
+
+    this.box.inject(this.options.container || document.body);
+    
+    this.uploading = 0;
+    this.fileList = [];
+    
+    var target = document.id(this.options.target);
+    if (target) this.attach(target);
+  },
+  
+  createInput: function() {
+    return this.file = new Element('input', {
       type: 'file',
       name: 'Filedata',
       multiple: this.options.multiple,
@@ -78,45 +90,22 @@ this.Uploader.Request = new Class({
         mousedown: function() {
           if (Browser.opera || Browser.chrome) return true;
           (function() {
-            this.file.click();
+            this.input.click();
             this.fireEvent('buttonDown');
           }).delay(10, this)
           return false;
-        }.bind(this),
-        focus: function() {
-          return false;
-        }
+        }.bind(this)
       }
-    }).inject(this.box);
-    
-    this.reposition();
-    window.addEvent('resize', this.reposition.bind(this));
-
-    this.box.inject(this.options.container || document.body);
-
-    this.addEvents({
-      buttonEnter: this.targetRelay.bind(this, ['mouseenter']),
-      buttonLeave: this.targetRelay.bind(this, ['mouseleave']),
-      buttonDown: this.targetRelay.bind(this, ['mousedown']),
-      buttonDisable: this.targetRelay.bind(this, ['disable'])
     });
-
-    this.uploading = 0;
-    this.fileList = [];
-
-    return this;
-  },
-
-  targetRelay: function(name) {
-    if (this.target) this.target.fireEvent(name);
   },
   
   select: function() {
-    var files = this.file.files, success = [], failure = [];
+    var files = this.input.files, success = [], failure = [];
     //this.file.onchange = this.file.onmousedown = this.file.onfocus = null;
     for (var i = 0, file; file = files[i++];) {
       var cls = this.options.fileClass || Uploader.Request.File;
-      var ret = new cls(this, file);
+      var ret = new cls;
+      cls.setBase(this, file);
       if (!ret.validate()) {
         ret.invalidate()
         ret.render();
@@ -136,16 +125,6 @@ this.Uploader.Request = new Class({
 
     if (this.options.instantStart) this.start();
   },
-
-  reposition: function(coords) {
-    // update coordinates, manual or automatically
-    coords = coords || (this.target && this.target.offsetHeight)
-      ? this.target.getCoordinates(this.box.getOffsetParent())
-      : {top: window.getScrollTop(), left: 0, width: 40, height: 40}
-    this.box.setStyles(coords);
-    this.fireEvent('reposition', [coords, this.box, this.target]);
-  },
-
 
   start: function() {
     var queued = this.options.queued;
@@ -168,33 +147,17 @@ this.Uploader.Request = new Class({
   },
 
   setEnabled: function(status) {
-    this.file.disabled = !!(status);
+    this.input.disabled = !!(status);
     if (status) this.fireEvent('buttonDisable');
   }
 
 });
 
-Object.append(Uploader.Request, {
+Uploader.Request.File = new Class({
 
-
-
-});
-
-this.Uploader.Request.File = new Class({
-
-  Extends: Uploader.File,
-
-  Implements: Options,
+  Implements: Uploader.File,
   
-  options: {
-    url: null,
-    method: null,
-    data: null,
-    mergeData: true,
-    fieldName: null
-  },
-
-  initialize: function(base, file) {
+  setBase: function(base, file) {
     this.base = base;
     this.file = file;
     this.id = $uid(this);
@@ -211,12 +174,14 @@ this.Uploader.Request.File = new Class({
       Object.append(this, name);
     }
     this.size = file.size;
+    
+		this.fireEvent('setBase', [base, name, this.size]);
   },
 
-  fireEvent: function(name) {
+  triggerEvent: function(name) {
     this.base.fireEvent('file' + name.capitalize(), [this]);
     Uploader.log('File::' + name, this);
-    return this.parent(name, [this]);
+    return this.fireEvent(name, [this]);
   },
 
   validate: function() {
@@ -248,7 +213,7 @@ this.Uploader.Request.File = new Class({
 
   invalidate: function() {
     this.invalid = true;
-    return this.fireEvent('invalid');
+    return this.triggerEvent('invalid');
   },
 
   render: function() {
@@ -260,8 +225,7 @@ this.Uploader.Request.File = new Class({
       bytesLoaded: progress.loaded,
       percentLoaded: progress.loaded / this.size * 100
     }
-    this.fireEvent('progress', this);
-    this.base.fireEvent('fileProgress', this);
+    this.base.triggerEvent('fileProgress', this);
   },
   
   onFailure: function() {
@@ -269,7 +233,7 @@ this.Uploader.Request.File = new Class({
     
     this.status = Uploader.STATUS_ERROR;
     //this.complete()
-    console.error('failure :(', this, $A(arguments))
+    console.error('failure :(', this, Array.from(arguments))
   },
 
   onSuccess: function(response) {
@@ -283,8 +247,8 @@ this.Uploader.Request.File = new Class({
       text: this.xhr.responseText
     }
 
-    this.fireEvent('complete');
-    this.base.fireEvent('fileComplete', this)
+    this.triggerEvent('complete');
+    this.base.triggerEvent('fileComplete', this)
     this.base.start();
   },
 
@@ -310,9 +274,8 @@ this.Uploader.Request.File = new Class({
     xhr.upload.onload = function(response) {
       setTimeout(function(){
         if(xhr.readyState === 4) {
-          $try(function(){
-      			this.status = this.xhr.status;
-      		}.bind(this));
+          try { this.status = this.xhr.status}
+          catch(e) {};
       		self[(this.status < 300 && this.status > 199) ? 'onSuccess' : 'onFailure'](response)
         } else setTimeout(arguments.callee, 15);
       }, 15);
@@ -322,7 +285,7 @@ this.Uploader.Request.File = new Class({
     this.status = Uploader.STATUS_RUNNING;
     this.base.uploading++;
     
-    this.base.fireEvent('fileStart', this);
+    this.base.triggerEvent('fileStart', this);
     
     xhr.open("post", (merged.url) + "?" + query, true);
     xhr.setRequestHeader("If-Modified-Since", "Mon, 26 Jul 1997 05:00:00 GMT");
@@ -335,7 +298,7 @@ this.Uploader.Request.File = new Class({
 
     this.dates.start = new Date();
 
-    this.fireEvent('start');
+    this.triggerEvent('start');
 
     return this;
   },
@@ -343,7 +306,7 @@ this.Uploader.Request.File = new Class({
   requeue: function() {
     this.stop();
     this.status = Uploader.STATUS_QUEUED;
-    this.fireEvent('requeue');
+    this.triggerEvent('requeue');
   },
 
   stop: function(soft) {
@@ -352,7 +315,7 @@ this.Uploader.Request.File = new Class({
       this.base.uploading--;
       this.base.start();
       this.xhr.abort()
-      this.fireEvent('stop');
+      this.triggerEvent('stop');
     }
     return this;
   },
@@ -361,15 +324,12 @@ this.Uploader.Request.File = new Class({
     this.stop();
     delete thix.xhr;
     this.base.fileList.erase(this);
-    this.fireEvent('remove');
-    this.base.fireEvent('fileRemove', this);
+    this.triggerEvent('remove');
     
     return this;
   }
 });
 
-this.Uploader.Request.condition = function() {
+Uploader.Request.condition = function() {
   return (Browser.safari && Browser.version > 3) || Browser.chrome || (Browser.firefox && Browser.firefox.version > 2);
 }
-
-}).call(this, document.id, document.getElements);

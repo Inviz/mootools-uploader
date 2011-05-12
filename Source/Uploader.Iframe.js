@@ -16,12 +16,10 @@ author: Harald Kirschner <http://digitarald.de>
 ...
 */
 
-(function($, $$){
-
 if (!this.Uploader) this.Uploader = {}
 this.Uploader.Iframe = new Class({
 
-	Implements: [Options, Events],
+	Implements: [Options, Events, Uploader.Targeting],
 
 	options: {
 		container: null,
@@ -46,40 +44,21 @@ this.Uploader.Iframe = new Class({
 
 	initialize: function(options) {
 		this.setOptions(options);
-
-		this.target = $(this.options.target);
-
-		this.box = new Element('div').setStyles({
-			position: 'absolute',
-			opacity: 0.01,
-			zIndex: 9999,
-			overflow: 'hidden'
-		});
-
-		this.reposition();
-		window.addEvent('resize', this.reposition.bind(this));
-
-		this.box.inject(this.options.container || document.body);
-
-		this.addEvents({
-			buttonEnter: this.targetRelay.bind(this, 'mouseenter'),
-			buttonLeave: this.targetRelay.bind(this, 'mouseleave'),
-			buttonDown: this.targetRelay.bind(this, 'mousedown'),
-			buttonDisable: this.targetRelay.bind(this, 'disable')
-		});
-
+		
 		this.uploading = 0;
 		this.fileList = [];
+		
+    this.getBox().addEvents({
+      'mouseenter': this.fireEvent.bind(this, 'buttonEnter'),
+      'mouseleave': this.fireEvent.bind(this, 'buttonLnter')
+    })
 
 		this.createIFrame();
-
-		return this;
+    
+    var target = document.id(this.options.target);
+    if (target) this.attach(target);
 	},
-
-	targetRelay: function(name) {
-		if (this.target) this.target.fireEvent(name);
-	},
-
+	
 	createIFrame: function() {
 		this.iframe = new Element('iframe', {
 			src: "javascript:'<html></html>'",
@@ -89,8 +68,9 @@ this.Uploader.Iframe = new Class({
 				width: '100%',
 				height: '100%'
 			}
-		}).inject(this.box);
+		}).inject(this.getBox());
 		this.runner = this.createIBody.periodical(50, this);
+		return this.iframe;
 	},
 
 	createIBody: function() {
@@ -105,7 +85,7 @@ this.Uploader.Iframe = new Class({
 			'<input type="submit" /><div id="data"></div></form>' + 
 			'<style type="text/css">*{margin:0;padding:0;border:0;overflow:hidden;cursor:pointer;}</style>';
 		
-		this.doc = doc;Object.merge
+		this.doc = doc;
 		
 		this.processIBody.delay(50, this);
 	},
@@ -138,13 +118,13 @@ this.Uploader.Iframe = new Class({
 
 	select: function() {
 		this.file.onchange = this.file.onmousedown = this.file.onfocus = null;
-
 		var name = this.file.value.replace(/^.*[\\\/]/, '');
-
 		var cls = this.options.fileClass || Uploader.Iframe.File;
-		var ret = new cls(this, name, this.iframe.setStyle('display', 'none'));
+		var ret = new cls;
+		ret.setBase(this, name, this.iframe.setStyle('display', 'none'));
 		if (!ret.validate()) {
-			ret.invalidate().render();
+			ret.invalidate();
+			ret.render();
 			this.fireEvent('onSelectFailed', [[ret]]);
 			return;
 		}
@@ -152,7 +132,6 @@ this.Uploader.Iframe = new Class({
 		this.fileList.push(ret);
 		ret.render();
 		this.fireEvent('onSelectSuccess', [[ret]]);
-
 		if (this.options.instantStart) this.start();
 		
 		this.file = null;
@@ -160,23 +139,12 @@ this.Uploader.Iframe = new Class({
 		this.createIFrame();
 	},
 
-	reposition: function(coords) {
-		// update coordinates, manual or automatically
-		coords = coords || (this.target && this.target.offsetHeight)
-			? this.target.getCoordinates(this.box.getOffsetParent())
-			: {top: window.getScrollTop(), left: 0, width: 40, height: 40}
-		this.box.setStyles(coords);
-		this.fireEvent('reposition', [coords, this.box, this.target]);
-	},
-
-
 	start: function() {
 		this.fireEvent('beforeStart');
 		var queued = this.options.queued;
 		queued = (queued) ? ((queued > 1) ? queued : 1) : 0;
-
 		for (var i = 0, file; file = this.fileList[i]; i++) {
-			if (this.fileList[i].status != Uploader.Iframe.STATUS_QUEUED) continue;
+			if (this.fileList[i].status != Uploader.STATUS_QUEUED) continue;
 			this.fileList[i].start();
 			if (queued && this.uploading >= queued) break;
 		}
@@ -200,37 +168,11 @@ this.Uploader.Iframe = new Class({
 
 });
 
-Object.append(Uploader.Iframe, {
-
-	STATUS_QUEUED: 0,
-	STATUS_RUNNING: 1,
-	STATUS_ERROR: 2,
-	STATUS_COMPLETE: 3,
-	STATUS_STOPPED: 4,
-
-	id: 0,
-
-	log: function() {
-		if (window.console && console.info) console.info.apply(console, arguments);
-	}
-
-});
-
 Uploader.Iframe.File = new Class({
 
-	Extends: Events,
+	Implements: Uploader.File,
 
-	Implements: Options,
-	
-	options: {
-		url: null,
-		method: null,
-		data: null,
-		mergeData: true,
-		fieldName: null
-	},
-
-	initialize: function(base, name, iframe) {
+	setBase: function(base, name, iframe) {
 		this.base = base;
 
 		this.id = $uid(this);
@@ -245,12 +187,14 @@ Uploader.Iframe.File = new Class({
 			abort: this.stop.bind(this),
 			load: this.onLoad.bind(this)
 		});
+		
+		this.fireEvent('setBase', [base, name]);
 	},
 
-	fireEvent: function(name) {
+	triggerEvent: function(name) {
 		this.base.fireEvent('file' + name.capitalize(), [this]);
 		Uploader.log('File::' + name, this);
-		return this.parent(name, [this]);
+		return this.fireEvent(name, [this]);
 	},
 
 	validate: function() {
@@ -277,7 +221,7 @@ Uploader.Iframe.File = new Class({
 
 	invalidate: function() {
 		this.invalid = true;
-		return this.fireEvent('invalid');
+		return this.triggerEvent('invalid');
 	},
 
 	render: function() {
@@ -289,19 +233,19 @@ Uploader.Iframe.File = new Class({
 
 		this.status = Uploader.STATUS_COMPLETE;
 
-		var win = new Window(this.iframe.contentWindow);
-		var doc = new Document(win.document);
+		var win = this.iframe.contentWindow;
+		var doc = win.document;
 		
 		this.response = {
 			window: win,
 			document: doc,
-			text: doc.innerHTML || ''
+			text: doc.body.innerHTML || ''
 		};
 
 		this.base.uploading--;
 		this.dates.complete = new Date();
 
-		this.fireEvent('complete');
+		this.triggerEvent('complete');
 
 		this.base.start();
 	},
@@ -356,12 +300,11 @@ Uploader.Iframe.File = new Class({
 
 		this.status = Uploader.STATUS_RUNNING;
 		this.base.uploading++;
-
 		form.submit();
 
 		this.dates.start = new Date();
 
-		this.fireEvent('start');
+		this.triggerEvent('start');
 
 		return this;
 	},
@@ -369,7 +312,7 @@ Uploader.Iframe.File = new Class({
 	requeue: function() {
 		this.stop();
 		this.status = Uploader.STATUS_QUEUED;
-		this.fireEvent('requeue');
+		this.triggerEvent('requeue');
 	},
 
 	stop: function(soft) {
@@ -379,7 +322,7 @@ Uploader.Iframe.File = new Class({
 			this.base.start();
 			if (!soft) {
 				this.iframe.contentWindow.history.back();
-				this.fireEvent('stop');
+				this.triggerEvent('stop');
 			}
 		}
 		return this;
@@ -387,9 +330,9 @@ Uploader.Iframe.File = new Class({
 
 	remove: function() {
 		this.stop(true);
-		this.iframe = this.iframe.destroy();
+		if (this.iframe) this.iframe = this.iframe.destroy();
 		this.base.fileList.erase(this);
-		this.fireEvent('remove');
+		this.triggerEvent('remove');
 		return this;
 	}
 
@@ -398,5 +341,3 @@ Uploader.Iframe.File = new Class({
 this.Uploader.Iframe.condition = function() {
 	return true;
 }
-
-}).call(this, document.id, document.getElements);
