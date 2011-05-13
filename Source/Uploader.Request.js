@@ -250,15 +250,12 @@ Uploader.Request.File = new Class({
       
     this.base.uploading--;
     this.dates.complete = new Date();
-    this.response = {
-      text: this.xhr.responseText
-    }
+    this.response = response;
 
     this.triggerEvent('complete');
     this.base.start();
     
     delete this.xhr;
-    
   },
 
   start: function() {
