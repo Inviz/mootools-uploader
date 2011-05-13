@@ -226,7 +226,7 @@ Uploader.Request.File = new Class({
   onProgress: function(progress) {
     this.progress = {
       bytesLoaded: progress.loaded,
-      percentLoaded: progress.loaded / this.total * 100
+      percentLoaded: progress.loaded / progress.total * 100
     }
     this.triggerEvent('progress', progress);
   },
@@ -247,7 +247,6 @@ Uploader.Request.File = new Class({
     this.status = Uploader.STATUS_COMPLETE;
     
     delete this.file;
-    delete this.xhr;
       
     this.base.uploading--;
     this.dates.complete = new Date();
@@ -257,6 +256,9 @@ Uploader.Request.File = new Class({
 
     this.triggerEvent('complete');
     this.base.start();
+    
+    delete this.xhr;
+    
   },
 
   start: function() {
