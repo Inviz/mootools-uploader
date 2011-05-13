@@ -12,6 +12,9 @@ version: 1.0
 
 license: MIT License
 
+credits:
+  - François de Metz <https://github.com/coolaj86/html5-formdata> 
+
 authors: 
   - Harald Kirschner <http://digitarald.de>
   - Yaroslaff Fedin
@@ -69,7 +72,7 @@ Uploader.Request = new Class({
   },
   
   createInput: function() {
-    return this.file = new Element('input', {
+    return this.input = new Element('input', {
       type: 'file',
       name: 'Filedata',
       multiple: this.options.multiple,
@@ -105,7 +108,7 @@ Uploader.Request = new Class({
     for (var i = 0, file; file = files[i++];) {
       var cls = this.options.fileClass || Uploader.Request.File;
       var ret = new cls;
-      cls.setBase(this, file);
+      ret.setBase(this, file);
       if (!ret.validate()) {
         ret.invalidate()
         ret.render();
@@ -131,7 +134,7 @@ Uploader.Request = new Class({
     queued = (queued) ? ((queued > 1) ? queued : 1) : 0;
 
     for (var i = 0, file; file = this.fileList[i]; i++) {
-      if (this.fileList[i].status != Uploader.Request.STATUS_QUEUED) continue;
+      if (this.fileList[i].status != Uploader.STATUS_QUEUED) continue;
       this.fileList[i].start();
       if (queued && this.uploading >= queued) break;
     }
@@ -223,16 +226,18 @@ Uploader.Request.File = new Class({
   onProgress: function(progress) {
     this.progress = {
       bytesLoaded: progress.loaded,
-      percentLoaded: progress.loaded / this.size * 100
+      percentLoaded: progress.loaded / this.total * 100
     }
-    this.base.triggerEvent('fileProgress', this);
+    this.triggerEvent('progress', progress);
   },
   
   onFailure: function() {
     if (this.status != Uploader.STATUS_RUNNING) return;
     
     this.status = Uploader.STATUS_ERROR;
-    //this.complete()
+    delete this.xhr;
+    
+    this.triggerEvent('fail')
     console.error('failure :(', this, Array.from(arguments))
   },
 
@@ -240,7 +245,10 @@ Uploader.Request.File = new Class({
     if (this.status != Uploader.STATUS_RUNNING) return;
 
     this.status = Uploader.STATUS_COMPLETE;
-
+    
+    delete this.file;
+    delete this.xhr;
+      
     this.base.uploading--;
     this.dates.complete = new Date();
     this.response = {
@@ -248,7 +256,6 @@ Uploader.Request.File = new Class({
     }
 
     this.triggerEvent('complete');
-    this.base.triggerEvent('fileComplete', this)
     this.base.start();
   },
 
@@ -266,17 +273,18 @@ Uploader.Request.File = new Class({
       if (merged.mergeData && base.data && options.data) {
         if (typeOf(base.data) == 'string') merged.data = base.data + '&' + options.data;
         else merged.data = Object.merge(base.data, options.data);
-      }      
-    }  
-		var query = (typeOf(merged.data) == 'string') ? merged.data : Hash.toQueryString(merged.data);
+      }
+  		var query = (typeOf(merged.data) == 'string') ? merged.data : Hash.toQueryString(merged.data);      
+    } 
+    
     var xhr = this.xhr = new XMLHttpRequest, self = this;
     xhr.upload.onprogress = this.onProgress.bind(this);
-    xhr.upload.onload = function(response) {
+    xhr.upload.onload = function() {
       setTimeout(function(){
         if(xhr.readyState === 4) {
-          try { this.status = this.xhr.status}
-          catch(e) {};
-      		self[(this.status < 300 && this.status > 199) ? 'onSuccess' : 'onFailure'](response)
+          try { var status = xhr.status } catch(e) {};
+          self.response = {text: xhr.responseText}
+          self[(status < 300 && status > 199) ? 'onSuccess' : 'onFailure'](self.response)
         } else setTimeout(arguments.callee, 15);
       }, 15);
     }
@@ -285,17 +293,19 @@ Uploader.Request.File = new Class({
     this.status = Uploader.STATUS_RUNNING;
     this.base.uploading++;
     
-    this.base.triggerEvent('fileStart', this);
-    
-    xhr.open("post", (merged.url) + "?" + query, true);
-    xhr.setRequestHeader("If-Modified-Since", "Mon, 26 Jul 1997 05:00:00 GMT");
+    xhr.open("post", (merged.url) + (query ? "?" + query : ""), true);
     xhr.setRequestHeader("Cache-Control", "no-cache");
-    xhr.setRequestHeader("Content-Type", "multipart/form-data");
     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-    xhr.setRequestHeader("X-File-Size", this.file.size);
-    xhr.setRequestHeader("X-File-Type", this.file.type);
-    xhr.send(this.file)
-
+    
+    var data = new FormData();
+    data.append(this.options.fieldName, this.file);
+    if (data.fake) {
+       xhr.setRequestHeader("Content-Type", "multipart/form-data; boundary="+ data.boundary);
+       xhr.sendAsBinary(data.toString());
+    } else {
+       xhr.send(data);
+    }
+    
     this.dates.start = new Date();
 
     this.triggerEvent('start');
@@ -322,7 +332,7 @@ Uploader.Request.File = new Class({
 
   remove: function() {
     this.stop();
-    delete thix.xhr;
+    delete this.xhr;
     this.base.fileList.erase(this);
     this.triggerEvent('remove');
     
@@ -332,4 +342,37 @@ Uploader.Request.File = new Class({
 
 Uploader.Request.condition = function() {
   return (Browser.safari && Browser.version > 3) || Browser.chrome || (Browser.firefox && Browser.firefox.version > 2);
-}
+};
+
+(function(w) {
+    if (w.FormData)
+        return;
+    function FormData() {
+        this.fake = true;
+        this.boundary = "--------FormData" + Math.random();
+        this._fields = [];
+    }
+    FormData.prototype.append = function(key, value) {
+        this._fields.push([key, value]);
+    }
+    FormData.prototype.toString = function() {
+        var boundary = this.boundary;
+        var body = "";
+        this._fields.forEach(function(field) {
+            body += "--" + boundary + "\r\n";
+            // file upload
+            if (field[1].name) {
+                var file = field[1];
+                body += "Content-Disposition: form-data; name=\""+ field[0] +"\"; filename=\""+ file.name +"\"\r\n";
+                body += "Content-Type: "+ file.type +"\r\n\r\n";
+                body += file.getAsBinary() + "\r\n";
+            } else {
+                body += "Content-Disposition: form-data; name=\""+ field[0] +"\";\r\n\r\n";
+                body += field[1] + "\r\n";
+            }
+        });
+        body += "--" + boundary +"--";
+        return body;
+    }
+    w.FormData = FormData;
+})(window);

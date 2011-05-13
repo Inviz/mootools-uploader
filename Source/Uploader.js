@@ -33,10 +33,8 @@ var Uploader = this.Uploader = function(options) {
 	var Klass = Uploader[options.adapter.capitalize()];
 	options.fileClass = (options.getFileClass ? options : Uploader).getFileClass(options.adapter, Klass);
 	var uploader = new Klass(options);
-	if (!window.$u)$u = uploader
 	uploader.addEvent('fileProgress', function(file) {
-	  if (file.id) file = uploader.findFile(file.id);
-	  console.log('file', file.id, file)
+	  if (file.id && uploader.fildFile) file = uploader.findFile(file.id);
 	  if (file) file.fireEvent('progress');
 	});
 	return uploader;
@@ -48,7 +46,7 @@ Uploader.options = {
 }
 
 Object.append(Uploader, {
-	METHODS: ['Swiff', 'Iframe', 'Request'],
+	METHODS: ['Request', 'Swiff', 'Iframe', 'Request'],
 
 	STATUS_QUEUED: 0,
 	STATUS_RUNNING: 1,
@@ -171,7 +169,6 @@ Uploader.Targeting = new Class({
 
 	reposition: function(coords) {
 		// update coordinates, manual or automatically
-		console.log('repois')
 		coords = coords || (this.target && this.target.offsetHeight)
 			? this.target.getCoordinates(this.box.getOffsetParent())
 			: {top: window.getScrollTop(), left: 0, width: 40, height: 40}
@@ -183,7 +180,7 @@ Uploader.Targeting = new Class({
     if (this.box) return this.box;
     this.box = new Element('div').setStyles({
 			position: 'absolute',
-			opacity: 1,
+			opacity: 0.02,
 			zIndex: this.options.zIndex,
 			overflow: 'hidden',
 			overflow: 'hidden',
