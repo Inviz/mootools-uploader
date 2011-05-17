@@ -333,16 +333,6 @@ Swiff.Uploader.log = Uploader.log;
 Swiff.Uploader.File = new Class({
 	Implements: Uploader.File,
 
-	setBase: function(base, data) {
-		this.base = base;
-		this.setData(data);
-		this.fireEvent('setBase', [base, this.name, this.size]);
-	},
-	
-	setData: function(data) {
-		return Object.append(this, data);
-	},
-
 	validate: function() {
 		var options = this.base.options;
 		

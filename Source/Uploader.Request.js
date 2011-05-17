@@ -108,7 +108,7 @@ Uploader.Request = new Class({
     for (var i = 0, file; file = files[i++];) {
       var cls = this.options.fileClass || Uploader.Request.File;
       var ret = new cls;
-      ret.setBase(this, file);
+      ret.setBase(this, file)
       if (!ret.validate()) {
         ret.invalidate()
         ret.render();
@@ -119,13 +119,10 @@ Uploader.Request = new Class({
         ret.render();
         success.push(ret)
       }
-
     }
-
-    
     if (success.length) this.fireEvent('onSelectSuccess', [success]);
     if (failure.length) this.fireEvent('onSelectFailed', [failure]);
-
+    
     if (this.options.instantStart) this.start();
   },
 
@@ -160,25 +157,13 @@ Uploader.Request.File = new Class({
 
   Implements: Uploader.File,
   
-  setBase: function(base, file) {
-    this.base = base;
-    this.file = file;
-    this.id = $uid(this);
+  setData: function(file) {
     this.status = Uploader.STATUS_QUEUED;
     this.dates = {};
     this.dates.add = new Date();
-    
-    if (!file) return;
-    var name = file.name;
-    if (typeOf(name) == "string") {
-      this.name = name;
-      this.extension = name.replace(/^.*\./, '').toLowerCase();
-    } else {
-      Object.append(this, name);
-    }
-    this.size = file.size;
-    
-		this.fireEvent('setBase', [base, name, this.size]);
+    this.file = file;
+    this.setFile({id: $uid(this), name: file.name, size: file.size, type: file.type});
+	  return this;
   },
 
   triggerEvent: function(name) {
@@ -323,18 +308,17 @@ Uploader.Request.File = new Class({
       this.status = Uploader.STATUS_STOPPED;
       this.base.uploading--;
       this.base.start();
-      this.xhr.abort()
-      this.triggerEvent('stop');
+      this.xhr.abort();
+      if (!soft) this.triggerEvent('stop');
     }
     return this;
   },
 
   remove: function() {
-    this.stop();
+    this.stop(true);
     delete this.xhr;
     this.base.fileList.erase(this);
     this.triggerEvent('remove');
-    
     return this;
   }
 });
