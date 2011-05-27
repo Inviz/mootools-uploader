@@ -336,4 +336,4 @@ Uploader.Iframe.File = new Class({
 
 this.Uploader.Iframe.condition = function() {
   return true;
-}
+};
