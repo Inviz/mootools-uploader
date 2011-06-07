@@ -125,6 +125,8 @@ Uploader.File = new Class({
   
   setBase: function(base) {
     this.base = base;
+    if (this.options.fieldName == null)
+      this.options.fieldName = this.base.options.fieldName;
     this.fireEvent('setBase', base);
     var args = Array.prototype.slice.call(arguments, 1);
     if (args.length) this.setData.apply(this, args);
