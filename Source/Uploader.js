@@ -26,12 +26,7 @@ var Uploader = this.Uploader = function(options) {
   var Klass = Uploader.getAdapterClass(options.adapter);
   if (!options.fileClass) 
     options.fileClass = (options.getFileClass ? options : Uploader).getFileClass(options.adapter, Klass);
-  var uploader = new Klass(options);
-  uploader.addEvent('fileProgress', function(file) {
-    if (file.id && uploader.fildFile) file = uploader.findFile(file.id);
-    if (file) file.fireEvent('progress');
-  });
-  return uploader;
+  return new Klass(options);
 };
 
 Uploader.options = {
@@ -125,6 +120,7 @@ Uploader.File = new Class({
   
   setBase: function(base) {
     this.base = base;
+    this.target = base.target;
     if (this.options.fieldName == null)
       this.options.fieldName = this.base.options.fieldName;
     this.fireEvent('setBase', base);
@@ -136,6 +132,13 @@ Uploader.File = new Class({
   setData: function(data) {
     this.setFile(data);
     return this;
+  },
+
+  triggerEvent: function(name) {
+    var args = [this].concat(Array.prototype.slice.call(arguments, 1));
+    this.base.fireEvent('file' + name.capitalize(), args);
+    Uploader.log('File::' + name, args);
+    return this.fireEvent(name, args);
   },
   
   setFile: function(file) {
@@ -183,6 +186,7 @@ Uploader.Targeting = new Class({
   },
   
   attach: function(target) {
+    target = document.id(target);
     if (!this.target) this.addEvents(this.getTargetRelayEvents());
     else this.detach();
     this.target = target;

@@ -162,14 +162,8 @@ Uploader.Request.File = new Class({
     this.dates = {};
     this.dates.add = new Date();
     this.file = file;
-    this.setFile({id: $uid(this), name: file.name, size: file.size, type: file.type});
+    this.setFile({name: file.name, size: file.size, type: file.type});
 	  return this;
-  },
-
-  triggerEvent: function(name) {
-    this.base.fireEvent('file' + name.capitalize(), [this]);
-    Uploader.log('File::' + name, this);
-    return this.fireEvent(name, [this]);
   },
 
   validate: function() {
@@ -204,16 +198,13 @@ Uploader.Request.File = new Class({
     return this.triggerEvent('invalid');
   },
 
-  render: function() {
-    return this;
-  },
-  
   onProgress: function(progress) {
-    this.progress = {
+    this.$progress = {
       bytesLoaded: progress.loaded,
-      percentLoaded: progress.loaded / progress.total * 100
-    }
-    this.triggerEvent('progress', progress);
+      percentLoaded: progress.loaded / progress.total * 100,
+      total: progress.total
+    };
+    this.triggerEvent('progress', this.$progress);
   },
   
   onFailure: function() {

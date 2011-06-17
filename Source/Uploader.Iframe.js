@@ -180,16 +180,10 @@ Uploader.Iframe.File = new Class({
       abort: this.stop.bind(this),
       load: this.onLoad.bind(this)
     });
-    this.setFile({id: $uid(this), name: name});
+    this.setFile({name: name});
 	  return this;
   },
-
-  triggerEvent: function(name) {
-    this.base.fireEvent('file' + name.capitalize(), [this]);
-    Uploader.log('File::' + name, this);
-    return this.fireEvent(name, [this]);
-  },
-
+  
   validate: function() {
     var base = this.base.options;
 
