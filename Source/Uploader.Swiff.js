@@ -389,4 +389,4 @@ Swiff.Uploader.File = new Class({
 
 Swiff.Uploader.condition = function() {
 	return Browser.Plugins.Flash && Browser.Plugins.Flash.version > 8;
-}
+};
