@@ -105,6 +105,8 @@ Uploader.Request = new Class({
   select: function() {
     var files = this.input.files, success = [], failure = [];
     //this.file.onchange = this.file.onmousedown = this.file.onfocus = null;
+    this.fireEvent('beforeSelect');
+    
     for (var i = 0, file; file = files[i++];) {
       var cls = this.options.fileClass || Uploader.Request.File;
       var ret = new cls;

@@ -121,6 +121,7 @@ this.Uploader.Iframe = new Class({
     var name = this.file.value.replace(/^.*[\\\/]/, '');
     var cls = this.options.fileClass || Uploader.Iframe.File;
     var ret = new cls;
+    this.fireEvent('onBeforeSelect');
     ret.setBase(this, name, this.iframe.setStyle('display', 'none'));
     if (!ret.validate()) {
       ret.invalidate();

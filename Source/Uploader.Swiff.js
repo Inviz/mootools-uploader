@@ -289,6 +289,8 @@ Uploader.Swiff = Swiff.Uploader = new Class({
 		var cls = this.options.fileClass || Swiff.Uploader.File;
 
 		var fail = [], success = [];
+		
+		this.fireEvent('beforeSelect');
 
 		if (successraw) {
 			successraw.each(function(data) {
