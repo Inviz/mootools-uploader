@@ -135,9 +135,10 @@ Uploader.File = new Class({
   },
 
   triggerEvent: function(name) {
-    var args = [this].concat(Array.prototype.slice.call(arguments, 1));
-    this.base.fireEvent('file' + name.capitalize(), args);
-    Uploader.log('File::' + name, args);
+    var args = Array.prototype.slice.call(arguments, 1);
+    var augmented = [this].concat(args);
+    this.base.fireEvent('file' + name.capitalize(), augmented);
+    Uploader.log('File::' + name, augmented);
     return this.fireEvent(name, args);
   },
   
