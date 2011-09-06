@@ -275,7 +275,7 @@ Uploader.Request.File = new Class({
     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
     
     var data = new FormData();
-    data.append(this.options.fieldName, this.file);
+    data.append(this.options.fieldName || "Filedata", this.file);
     if (data.fake) {
        xhr.setRequestHeader("Content-Type", "multipart/form-data; boundary="+ data.boundary);
        xhr.sendAsBinary(data.toString());
