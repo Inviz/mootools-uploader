@@ -141,8 +141,12 @@ Uploader.File = new Class({
     return this.fireEvent(name, args);
   },
   
+  setProperties: function(properties) {
+    return Object.append(this, properties);
+  },
+  
   setFile: function(file) {
-    if (file) Object.append(this, file);
+    if (file) this.setProperties(file);
     if (!this.name && this.filename) this.name = this.filename;
     this.fireEvent('setFile', this);
     if (this.name) this.extension = this.name.replace(/^.*\./, '').toLowerCase();
